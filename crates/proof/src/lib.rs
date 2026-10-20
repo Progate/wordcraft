@@ -297,7 +297,9 @@ pub fn save_user_dictionary(path: &std::path::Path, removed: &[String]) -> std::
         std::fs::create_dir_all(dir)?;
     }
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "custom-dictionary.txt".into());
-    let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    // WASI has no process id (`std::process::id` panics there).
+    let tag = if cfg!(target_os = "wasi") { 0 } else { std::process::id() };
+    let tmp = path.with_file_name(format!(".{name}.{tag}.tmp"));
     let written = std::fs::write(&tmp, out).and_then(|()| std::fs::rename(&tmp, path));
     if written.is_err() {
         let _ = std::fs::remove_file(&tmp);

@@ -110,6 +110,12 @@ fn explain(e: io::Error) -> io::Error {
     e
 }
 
+/// The process id for temporary names. WASI has none (`std::process::id` panics there); the
+/// names stay unique through `create_new` and the retry with the next number.
+fn process_tag() -> u32 {
+    if cfg!(target_os = "wasi") { 0 } else { std::process::id() }
+}
+
 struct Temporary {
     path: PathBuf,
     file: Option<File>,
@@ -127,7 +133,7 @@ impl Temporary {
         // A short name also works beside a destination already at the filename-length limit.
         for _ in 0..128 {
             let id = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = destination.with_file_name(format!(".wordcraft-save-{}-{id}.tmp", std::process::id()));
+            let path = destination.with_file_name(format!(".wordcraft-save-{}-{id}.tmp", process_tag()));
             let mut options = OpenOptions::new();
             options.write(true).create_new(true);
             #[cfg(unix)]

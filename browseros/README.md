@@ -23,6 +23,8 @@ holds what the WordCraft crates need to build and run there.
   the File sidebar entry, Help › Community Discord, the About dialog's link and the Options checkbox.
 - **Noto Sans JP (as Google Fonts ships it) is a Japanese interface font candidate**
   (`opentype/noto/NotoSansJP-Regular.otf`), which `@progate/browser-word` installs under `/usr/share/fonts`.
+- **Temporary names don't use the process id on WASI** (`engine/src/io/safe_save.rs`, `proof/src/lib.rs`).
+  `std::process::id` panics there; the safe save stays collision-free through `create_new` and its retry.
 
 ## License
 
