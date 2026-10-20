@@ -11,42 +11,42 @@ pub struct RecoveryInfo {
     pub saved_at: String,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod desktop;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) use desktop::Recovery;
 
 impl Session {
     /// The desktop host supplies the profile folder and a thread-safe wakeup.
     /// Headless sessions and the browser never write recovery files implicitly.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub fn enable_recovery(&mut self, root: std::path::PathBuf, wake: std::sync::Arc<dyn Fn() + Send + Sync>) -> Result<(), String> {
         self.recovery = Some(Recovery::start(root, wake)?);
         Ok(())
     }
     pub fn recovery_documents(&self) -> Vec<RecoveryInfo> {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(r) = &self.recovery {
             return r.documents.clone();
         }
         Vec::new()
     }
     pub fn recovery_ready(&self) -> bool {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(r) = &self.recovery {
             return r.ready;
         }
         false
     }
     pub fn recovery_busy(&self) -> bool {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(r) = &self.recovery {
             return r.busy;
         }
         false
     }
     pub fn recovery_error(&self) -> Option<&str> {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(r) = &self.recovery {
             return r.error.as_deref();
         }
@@ -54,7 +54,7 @@ impl Session {
     }
     /// A delayed restore can't replace edits made while it was loading. Restores have no path.
     pub fn recovery_tick(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             let Some(mut r) = self.recovery.take() else { return };
             if let Some((snapshot, expected)) = r.poll() {
@@ -78,7 +78,7 @@ impl Session {
         }
     }
     pub fn recovery_wait(&self) -> Option<std::time::Duration> {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(r) = &self.recovery
             && self.dirty
             && self.password.is_none()
@@ -91,7 +91,7 @@ impl Session {
     /// Only an explicit protect/save action waits for the worker and removes plaintext copies.
     /// A failure prevents applying the password; typing never waits.
     pub(crate) fn clear_recovery_before_password(&mut self) -> Result<(), CmdError> {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             let document = self.document_id();
             if let Some(r) = &mut self.recovery
@@ -109,7 +109,7 @@ impl Session {
             return Err(CmdError::Params("choose restore or discard".into()));
         }
         if restore.is_some() || discard.is_some() || v.get("refresh").is_some() {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             {
                 let expected = (self.document_id(), self.rev());
                 let r = self.recovery.as_mut().ok_or_else(|| CmdError::Disabled("local recovery requires the desktop host".into()))?;
@@ -125,7 +125,7 @@ impl Session {
                     return Err(CmdError::Params("refresh must be true".into()));
                 }
             }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
             return Err(CmdError::Disabled("local recovery is available on desktop only".into()));
         }
         Ok(

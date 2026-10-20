@@ -142,7 +142,7 @@ pub fn specs() -> Vec<CommandSpec> {
 
 /// The browser keeps full screen to itself (its own F11); the web app can't ask for it.
 fn full_screen_available(_: &Session) -> Option<&'static str> {
-    cfg!(target_arch = "wasm32").then_some("Use the browser's full screen (F11)")
+    cfg!(all(target_arch = "wasm32", target_os = "unknown")).then_some("Use the browser's full screen (F11)")
 }
 
 fn mode(s: &mut Session, m: ViewMode, read: bool) -> CmdResult {

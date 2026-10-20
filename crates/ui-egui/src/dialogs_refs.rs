@@ -13,7 +13,7 @@ use wordcraft_engine::cmd::references::FieldCode;
 
 use crate::WordApp;
 use crate::dialogs::{Dialog, buttons};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use crate::file_dialogs::{AfterPick, Asked, FileDialogRequest};
 use crate::theme::{Tokens, semibold};
 
@@ -1120,7 +1120,7 @@ fn sources_ui(app: &mut WordApp, ui: &mut Ui, selected: &mut Option<usize>) -> N
         }
         // Import… (desktop): a Word bibliography file (`b:Sources`, Word's own Sources.xml) adds
         // its sources to this document (#2640); the list above follows on the next frame.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if ui.button(tl!("Import…")).clicked()
             && let Asked::Done(Err(e)) = app.ask_file(FileDialogRequest::Open { purpose: "sources".into() }, AfterPick::Sources)
         {

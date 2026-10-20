@@ -87,12 +87,12 @@ fn status(app: &WordApp) -> Value {
     json!({"busy": z.busy.map(Command::wire_name), "waitingForAnswer": z.alert.as_ref().map(|a| a.text.clone()), "last": z.last})
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 fn start(_app: &mut WordApp, _cmd: Command, _ctx: Option<egui::Context>) -> Result<Value, String> {
     Err("Zotero works with the WordCraft desktop app".into())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn start(app: &mut WordApp, cmd: Command, ctx: Option<egui::Context>) -> Result<Value, String> {
     use std::sync::mpsc::channel;
     if let Some(b) = app.zotero.busy {

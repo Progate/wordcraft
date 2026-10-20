@@ -1073,7 +1073,7 @@ mod tests {
 
     /// #960 review: a new header still empty isn't saved, even while it is open; and one an Undo
     /// brings back after closing is taken away on the next close.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     #[test]
     fn an_empty_new_header_is_never_saved() {
         let dir = std::env::temp_dir().join(format!("wordcraft-hf960-{}", std::process::id()));

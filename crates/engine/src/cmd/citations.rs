@@ -578,7 +578,7 @@ fn sources(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The largest bibliography sources file imported from disk.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const MAX_SOURCES_FILE: u64 = 32 << 20;
 
 /// Import the sources of a Word bibliography file (`b:Sources`: Word's own `Sources.xml`) into
@@ -586,12 +586,12 @@ const MAX_SOURCES_FILE: u64 = 32 << 20;
 /// edited source; a source with no tag is matched to an existing one by title and author, and
 /// otherwise gets a tag the way a new source does.
 fn import_sources(s: &mut Session, path: &str) -> Result<(), CmdError> {
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     {
         let _ = (s, path);
         return Err(CmdError::Failed("reading files by path isn't available on the web".into()));
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     {
         // Through `io`, which keeps automation inside its read root (#769).
         let bytes = crate::io::read_file_capped(path, MAX_SOURCES_FILE, "sources file").map_err(CmdError::Failed)?;

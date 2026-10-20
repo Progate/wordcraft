@@ -6,7 +6,7 @@
 use wordcraft_ui_egui::{UiState, WordApp};
 
 /// The `localStorage` key.
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+#[cfg_attr(not(all(target_arch = "wasm32", target_os = "unknown")), allow(dead_code))]
 pub const KEY: &str = "wordcraft.ui";
 /// Largest stored value read back (`localStorage` holds about 5 MB per site).
 const MAX_STORED: usize = 4 << 20;

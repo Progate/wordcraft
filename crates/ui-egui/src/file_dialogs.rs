@@ -71,7 +71,7 @@ pub(crate) enum AfterPick {
     Font,
     /// Import the picked Word bibliography file (`b:Sources`: Word's `Sources.xml`) into the
     /// document through Manage Sources (#2640).
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     Sources,
     /// Hand the picked path to the open dialog (`WordApp::dialog_pick`): Templates and Add-ins,
     /// Organizer (#377).
@@ -117,12 +117,12 @@ impl WordApp {
         self.file_dialog.is_some() || self.file_browser_open()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn file_browser_open(&self) -> bool {
         self.file_browser.open.is_some()
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     fn file_browser_open(&self) -> bool {
         false
     }
@@ -170,7 +170,7 @@ impl WordApp {
     }
 
     /// Treat the system dialog the host is showing as cancelled, e.g. one that never showed up.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub(crate) fn give_up_file_dialog(&mut self) {
         if let Some(d) = self.file_dialog.take() {
             let _ = self.finish_pick(d.after, None);
@@ -179,14 +179,14 @@ impl WordApp {
 
     /// The host couldn't show a system dialog (#576): ask in the built-in browser instead, which
     /// finishes the job later. `None` while it is open.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn dialog_unavailable(&mut self, req: FileDialogRequest, after: AfterPick) -> Option<Result<Value, String>> {
         self.show_file_browser(req, after, true);
         None
     }
 
     /// The browser has no built-in file browser (it can't list the user's folders): cancelled.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     fn dialog_unavailable(&mut self, _req: FileDialogRequest, after: AfterPick) -> Option<Result<Value, String>> {
         Some(self.finish_pick(after, None))
     }
@@ -258,7 +258,7 @@ impl WordApp {
                 let Some(path) = picked else { return Ok(json!({"cancelled": true})) };
                 self.add_fonts(vec![path])
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             AfterPick::Sources => {
                 let Some(path) = picked else { return Ok(json!({"cancelled": true})) };
                 let before = self.session.doc.sources.len();

@@ -180,7 +180,7 @@ pub fn enabled(app: &WordApp, id: &str) -> bool {
     match app.session.registry.get(id) {
         Some(s) => (s.enabled)(&app.session).is_none(),
         // Zotero: one command at a time, and only in the desktop app.
-        None if id.starts_with("ui.zotero.") => app.zotero.busy.is_none() && !cfg!(target_arch = "wasm32"),
+        None if id.starts_with("ui.zotero.") => app.zotero.busy.is_none() && !cfg!(all(target_arch = "wasm32", target_os = "unknown")),
         None if id == "ui.linkTextBox" => enabled(app, "shape.link"),
         None if id == "ui.crop" => crate::crop::can_toggle(app),
         None => id.starts_with("ui."),
@@ -952,7 +952,7 @@ fn combo_impl(
                     out = Some(ADD_FONT.to_string());
                     ui.close();
                 }
-                #[cfg(target_arch = "wasm32")]
+                #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
                 if ui.button(tl!("Load System Installed Fonts…")).clicked() {
                     out = Some(LOAD_SYSTEM_FONTS.to_string());
                     ui.close();

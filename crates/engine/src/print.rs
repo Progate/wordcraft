@@ -179,7 +179,7 @@ pub(crate) fn print_pdf_to_file(s: &mut Session, v: &Value) -> Result<Value, Cmd
     let path = if path.to_ascii_lowercase().ends_with(".pdf") { path.to_string() } else { format!("{path}.pdf") };
     let (bytes, plan) = s.print_pdf(v)?;
     // Through `io`, so an agent confined to an automation write root (#769) can't print elsewhere.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     crate::io::write_file(&path, &bytes).map_err(CmdError::Failed)?;
     Ok(json!({"path": path, "pages": plan.pages.len(), "chosen": plan.chosen, "copies": plan.copies, "bytes": bytes.len()}))
 }
@@ -267,7 +267,7 @@ mod tests {
     }
 
     /// `file.printPdf` writes only inside the automation write root when there is one (#769).
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     #[test]
     fn print_pdf_to_file_is_held_to_the_write_root() {
         use crate::file_access::{AutomationRoots, confine};

@@ -626,7 +626,7 @@ fn read_wheel_turns(events: &[egui::Event], hovered: bool, accum: &mut f32) -> i
             match unit {
                 egui::MouseWheelUnit::Line => {
                     // Browsers typically emit three lines for one physical notch.
-                    let n = if cfg!(target_arch = "wasm32") { (d / 3.0).round() } else { d.round() };
+                    let n = if cfg!(all(target_arch = "wasm32", target_os = "unknown")) { (d / 3.0).round() } else { d.round() };
                     turns = turns.saturating_sub(n.clamp(-5.0, 5.0) as i32);
                     *accum = 0.0;
                 }
@@ -1471,7 +1471,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
         let focused = resp.has_focus() || app.canvas.focused;
         // After an automatic change, the web's text agent starts afresh (`keys::note_automatic_change`).
         // Only there: on X11 an interrupt recreates the input context and fcitx drops later keys (#1169).
-        let ime_reset = std::mem::take(&mut app.canvas.ime_reset) && cfg!(target_arch = "wasm32") && app.canvas.ime_preedit.is_empty();
+        let ime_reset = std::mem::take(&mut app.canvas.ime_reset) && cfg!(all(target_arch = "wasm32", target_os = "unknown")) && app.canvas.ime_preedit.is_empty();
         // Editing an equation: shade it and draw the caret inside it.
         let mut math_caret = false;
         if let Some(m) = app.session.math.clone()

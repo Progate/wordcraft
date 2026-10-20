@@ -407,7 +407,7 @@ fn open_page(app: &mut WordApp, ui: &mut Ui) {
     }
     // Linux and the BSDs (#576): the system dialog needs a file chooser portal or zenity; when it
     // doesn't show up, WordCraft's own browser is always one click away.
-    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    #[cfg(all(unix, not(target_os = "macos"), not(all(target_arch = "wasm32", target_os = "unknown"))))]
     if ui
         .button(egui::RichText::new(tl!("Browse in WordCraft…")).font(medium(14.0)))
         .on_hover_text(tl!("Open a file with WordCraft's own browser when the system file dialog doesn't appear."))
@@ -554,7 +554,7 @@ mod tests {
     /// #2938: opening a deleted file from Recent keeps File open and reports the error instead of
     /// closing it on a greyed-out window.
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn opening_a_missing_recent_file_keeps_file_open_with_the_error() {
         let mut app = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), Services::default());
         app.ui.backstage = true;
@@ -575,7 +575,7 @@ mod tests {
         assert!(full.x < windowed.x);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn recovery_app() -> (WordApp, std::path::PathBuf) {
         let root = std::env::temp_dir().join(format!(
             "wordcraft-recovery-ui-{}-{}",
@@ -599,7 +599,7 @@ mod tests {
         (app, root)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn recovery_harness(app: WordApp) -> egui_kittest::Harness<'static, WordApp> {
         egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
             |ui, app: &mut WordApp| {
@@ -611,7 +611,7 @@ mod tests {
         )
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn settle_recovery(h: &mut egui_kittest::Harness<'_, WordApp>) {
         let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
@@ -628,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn recovery_page_keeps_dismissed_copies_and_confirms_discard() {
         let (app, root) = recovery_app();
         let mut h = recovery_harness(app);
@@ -657,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn recovery_restore_uses_save_changes_and_resets_autosave_permission() {
         let (app, root) = recovery_app();
         let mut h = recovery_harness(app);

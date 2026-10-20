@@ -317,9 +317,9 @@ pub fn save_screenshot(image: &egui::ColorImage, path: Option<&str>) -> Value {
     let Some(path) = path else {
         return json!({"ok": true, "result": {"png": wordcraft_engine::cmd::insert::base64_encode(&png), "width": w, "height": h}});
     };
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     let _ = (&png, path);
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     {
         if let Err(e) = std::fs::write(path, &png) {
             return json!({"ok": false, "error": format!("{path}: {e}")});

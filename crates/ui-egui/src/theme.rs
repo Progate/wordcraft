@@ -565,13 +565,13 @@ pub fn font_definitions_language(prefer_hans: bool, prefer_korean: bool, system_
     // The embedded faces leave interface characters without a glyph (a build without craft-fonts,
     // without its Chinese face, #241, or with faces lacking catalog characters, #486): an
     // installed CJK font after them, so the menus don't show boxes or `?`.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     if system_cjk && let Some(f) = system_cjk_font(prefer_hans, prefer_korean) {
         let mut data = FontData::from_static(&f.bytes);
         data.index = f.index;
         add_cjk(&mut fonts, format!("system {}", f.family), data);
     }
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     let _ = system_cjk;
     // Symbols and emoji fall back to egui's defaults (kept in the families).
     fonts
@@ -581,7 +581,7 @@ pub fn font_definitions_language(prefer_hans: bool, prefer_korean: bool, system_
 /// `None` when the embedded faces already cover the interface text
 /// ([`cjk_font_text`](crate::i18n::Lang::cjk_font_text)). The font is picked for the catalogs'
 /// missing characters, or for the language names when only those are missing.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn system_cjk_font(hans: bool, korean: bool) -> Option<&'static wordcraft_fonts::SystemUiFont> {
     static ZH: std::sync::OnceLock<Option<wordcraft_fonts::SystemUiFont>> = std::sync::OnceLock::new();
     static OTHER: std::sync::OnceLock<Option<wordcraft_fonts::SystemUiFont>> = std::sync::OnceLock::new();

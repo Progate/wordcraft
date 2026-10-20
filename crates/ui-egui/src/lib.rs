@@ -51,7 +51,7 @@ pub mod dialogs_table_style;
 pub mod dialogs_templates;
 pub mod equation_tab;
 /// The built-in file browser, for desktops without a system file dialog (#576).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod file_browser;
 pub mod file_dialogs;
 pub mod frame;
@@ -609,7 +609,7 @@ pub struct WordApp {
     /// The file dialog the host is showing, and what its answer is for ([`file_dialogs`]).
     file_dialog: Option<file_dialogs::PendingDialog>,
     /// The built-in file browser, when it is open, and the folder it showed last (#576).
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub(crate) file_browser: file_browser::State,
     /// File › Info: the property field being typed in and the document revision after its last
     /// keystroke, so one visit's keystrokes make a single undo step (and anything else in
@@ -714,7 +714,7 @@ impl WordApp {
             font_generation: wordcraft_fonts::FontDb::global().generation(),
             dialog_pick: None,
             file_dialog: None,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             file_browser: file_browser::State::default(),
             info_editing: None,
             recovery_seen: false,
@@ -1656,7 +1656,7 @@ impl WordApp {
             // The built-in file browser (#576), for when the system's file dialog doesn't show up
             // (desktop only): `purpose` is document (default), picture, recipients or save. A system
             // dialog still waiting for an answer is given up as cancelled.
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             "ui.fileBrowser" => {
                 self.browse_builtin(s("purpose").unwrap_or("document"));
                 json!({"open": self.file_browser.open.is_some()})
@@ -2039,9 +2039,9 @@ impl WordApp {
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let mut placed_picture = false;
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         for f in ctx.input(|i| i.raw.dropped_files.clone()) {
             {
                 let path = f.path().to_string_lossy().to_string();
@@ -2233,7 +2233,7 @@ impl WordApp {
         }
         content_controls::popup(self, &ctx);
         dialogs::show(self, &ctx);
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         file_browser::show(self, &ctx);
         colors::show(self, &ctx);
         zotero::show_alert(self, &ctx);
@@ -2291,7 +2291,7 @@ impl WordApp {
         if self.ui.backstage || self.dialog.is_some() || self.colors.is_some() {
             return;
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if self.file_browser.open.is_some() {
             return;
         }
@@ -2657,13 +2657,13 @@ pub(crate) fn discards_document(id: &str, params: &Value) -> bool {
 
 /// Wall-clock milliseconds since the Unix epoch: the system clock, or the browser's on the web.
 pub fn now_ms() -> f64 {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     {
         use std::time::{SystemTime, UNIX_EPOCH};
         SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.0).unwrap_or(0.0)
     }
     // `SystemTime::now()` panics on wasm32-unknown-unknown, so ask the browser's clock.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     {
         let ms = js_sys::Date::now();
         if ms.is_finite() && ms > 0.0 { ms } else { 0.0 }

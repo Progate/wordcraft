@@ -20,7 +20,7 @@ image = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 # The browser clock (`SystemTime::now()` panics on wasm32).
 js-sys = "0.3"
 

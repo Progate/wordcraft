@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn system_math_font_has_a_table() {
         // Only meaningful where an open math font is installed (macOS ships STIX Two Math).
         let (face, t) = resolve_math("Cambria Math");

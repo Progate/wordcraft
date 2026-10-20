@@ -845,7 +845,7 @@ mod tests {
 
     /// #1902: Clipboard Delete returns focus to the document like paste does.
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn clipboard_delete_returns_focus_to_the_document() {
         use egui_kittest::kittest::Queryable;
 
@@ -877,7 +877,7 @@ mod tests {
     /// #3032: Delete is greyed out for built-in styles in the Styles pane (the engine refuses
     /// them — `crates/engine/src/cmd/para.rs`), while custom styles keep it enabled.
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn built_in_styles_grey_out_delete_in_the_styles_pane() {
         use egui_kittest::kittest::{NodeT, Queryable};
 

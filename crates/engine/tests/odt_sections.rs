@@ -2,7 +2,7 @@
 //! `w:sectPr` per section. The ODT is original and synthetic, built from ODF 1.3: paragraphs
 //! whose automatic styles name a master page (`style:master-page-name`), one restarting page
 //! numbering (`style:page-number`), and a two-column `text:section`.
-#![cfg(not(target_arch = "wasm32"))]
+#![cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 
 use std::io::{Read, Write};
 

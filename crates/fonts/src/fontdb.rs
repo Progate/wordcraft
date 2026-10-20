@@ -311,7 +311,7 @@ pub fn name_language_matches(ui: &str, tag: &str) -> bool {
     if traditional(&u) { traditional(&t) } else { simplified(&t) }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Clone, Debug)]
 struct CatalogEntry {
     family: String,
@@ -334,41 +334,41 @@ pub struct FontDb {
     /// (Thai, #59) got slower with every font loaded.
     fallbacks: RwLock<FallbackCache>,
     run_fallbacks: RwLock<RunFallbackCache>,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     catalog: RwLock<Vec<CatalogEntry>>,
     /// Fonts the user added at run time, and the folder they are stored in (#582).
     user: RwLock<user::UserFonts>,
     /// Bumped whenever user fonts are added or removed ([`FontDb::generation`]).
     generation: AtomicU64,
     /// The folders the system font scan reads (the platform's font folders for [`FontDb::global`]).
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
     font_dirs: Vec<std::path::PathBuf>,
     /// Set once the font folders have been scanned. Lookups by family name wait for the first
     /// scan, so what they find doesn't depend on what ran before them.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     cataloged: std::sync::OnceLock<()>,
     /// Held while an installed family's files load, so two lookups don't load it twice.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     loading: Mutex<()>,
     /// System fallback state: enabled, and characters no system font covers.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sys: Mutex<SysFallback>,
     /// Held through a system fallback search, so searches run one at a time. Without it a search
     /// racing another that was still loading a preferred family ("Padauk" for Myanmar) skipped
     /// that family as already tried and loaded whatever the coverage index found first (only
     /// Padauk Bold), so which face a character fell back to depended on thread timing.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     searching: Mutex<()>,
     /// The characters each installed font file maps, read the first time a fallback search
     /// needs that file. Held through a search, so two searches never read a file twice.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     coverage: Mutex<CoverageIndex>,
     /// Counts the font folder scans, so the coverage index notices a rescan.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     catalog_gen: AtomicU32,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Default)]
 struct SysFallback {
     enabled: bool,
@@ -382,18 +382,18 @@ const MAX_FAMILY_NAME: usize = 128;
 
 /// Characters remembered as covered by no installed font (a cap on memory: once full the set
 /// starts over, and the coverage index answers again quickly).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const SYS_MISSES_MAX: usize = 65_536;
 
 /// Installed font files larger than this are not searched for fallback characters.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const SYS_FALLBACK_MAX_FILE: u64 = 40 << 20;
 
 /// Which characters each cataloged font file maps (#605). Before it, every distinct character no
 /// loaded font covered read and parsed every installed font file again: 500 distinct Tangut
 /// characters froze the app for most of a minute. Now each file is read once, when a search
 /// first gets to it, and later searches answer from its ranges, reading only a file that matches.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Default)]
 struct CoverageIndex {
     /// The catalog scan the file list was taken from (`None` until the first search).
@@ -404,7 +404,7 @@ struct CoverageIndex {
     reads: usize,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 struct IndexedFile {
     path: std::path::PathBuf,
     /// The code points the file's faces map, as sorted, disjoint inclusive ranges (`None` until
@@ -415,7 +415,7 @@ struct IndexedFile {
 }
 
 /// Does `ranges` (sorted, disjoint, inclusive) hold `cp`?
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn ranges_hold(ranges: &[(u32, u32)], cp: u32) -> bool {
     let i = ranges.partition_point(|r| r.1 < cp);
     ranges.get(i).is_some_and(|r| r.0 <= cp)
@@ -424,7 +424,7 @@ fn ranges_hold(ranges: &[(u32, u32)], cp: u32) -> bool {
 /// The code points mapped by the faces of `data` (a font file or collection), as sorted,
 /// disjoint, inclusive ranges. Bounded however damaged the file: at most 256 faces, a budget of
 /// mappings read across them, and a cap on the ranges kept.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn coverage_ranges(data: &[u8]) -> Box<[(u32, u32)]> {
     const MAX_FACES: u32 = 256;
     const MAX_MAPPINGS: usize = 4 * 0x11_0000;
@@ -475,7 +475,7 @@ fn coverage_ranges(data: &[u8]) -> Box<[(u32, u32)]> {
 
 /// An installed font file's bytes, `None` when it can't be read or is larger than
 /// [`SYS_FALLBACK_MAX_FILE`] (also when it grew past that since it was cataloged).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn read_fallback_file(path: &std::path::Path) -> Option<Vec<u8>> {
     use std::io::Read;
     let file = std::fs::File::open(path).ok()?;
@@ -531,7 +531,7 @@ pub const RTL_FALLBACKS: &[&str] =
     &["Noto Naskh Arabic", "Noto Sans Arabic", "Noto Sans Hebrew", "Vazirmatn", "Segoe UI", "Arial", "Tahoma", "DejaVu Sans"];
 
 /// Families tried (when installed) for characters the loaded fonts lack: CJK, symbols, emoji.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const SYSTEM_FALLBACKS: &[&str] = &[
     "Helvetica Neue",
     "Arial",
@@ -661,7 +661,7 @@ pub(crate) fn legacy_family(family: &str, style: &str) -> String {
 }
 
 /// The color bitmap tables the renderer draws glyphs from ([`FontFace::color_glyph`]).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const COLOR_BITMAP_TABLES: [&[u8; 4]; 2] = [b"sbix", b"CBDT"];
 
 /// The names of every face in the font file at `path`, reading only its table directories and
@@ -669,7 +669,7 @@ const COLOR_BITMAP_TABLES: [&[u8; 4]; 2] = [b"sbix", b"CBDT"];
 /// (CJK collections run to 20 MB and more). A variable font yields one entry per named instance,
 /// as it does loaded. Faces with none of the [`OUTLINE_TABLES`](crate::ui_fallback::OUTLINE_TABLES)
 /// and [`COLOR_BITMAP_TABLES`] are left out.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn file_face_names(path: &std::path::Path) -> Vec<Found> {
     use crate::ui_fallback::OUTLINE_TABLES;
     use std::io::{Read, Seek, SeekFrom};
@@ -723,7 +723,7 @@ fn file_face_names(path: &std::path::Path) -> Vec<Found> {
 }
 
 /// A font file holding just `tables` (sorted by tag), each padded to four bytes.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn mini_font(tables: &[([u8; 4], Vec<u8>)]) -> Vec<u8> {
     let mut font = Vec::new();
     font.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
@@ -750,7 +750,7 @@ fn mini_font(tables: &[([u8; 4], Vec<u8>)]) -> Vec<u8> {
 /// Empty on wasm.
 pub fn system_font_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs: Vec<std::path::PathBuf> = Vec::new();
-    if cfg!(target_arch = "wasm32") {
+    if cfg!(all(target_arch = "wasm32", target_os = "unknown")) {
         return dirs;
     }
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
@@ -793,12 +793,12 @@ struct Found {
     style: String,
     /// The legacy family name ([`FontFace::legacy_family`]).
     legacy: String,
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
     full_name: Option<String>,
     /// The family's names in other languages ([`FontFace::local_names`]).
     local: Vec<LocalName>,
     /// A Chinese, Japanese or Korean font ([`FontFace::is_east_asian`]); the scan's catalog keeps it.
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
     east_asian: bool,
     /// Variable fonts: the named instance's axis settings.
     coords: Vec<([u8; 4], f32)>,
@@ -974,22 +974,22 @@ impl FontDb {
             outlines: Mutex::new(HashMap::new()),
             fallbacks: RwLock::new(FallbackCache::default()),
             run_fallbacks: RwLock::new(RunFallbackCache::default()),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             catalog: RwLock::new(Vec::new()),
             user: RwLock::new(user::UserFonts::default()),
             generation: AtomicU64::new(0),
             font_dirs,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             cataloged: std::sync::OnceLock::new(),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             loading: Mutex::new(()),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             sys: Mutex::new(SysFallback { enabled: true, ..Default::default() }),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             searching: Mutex::new(()),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             coverage: Mutex::new(CoverageIndex::default()),
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             catalog_gen: AtomicU32::new(0),
         }
     }
@@ -997,14 +997,14 @@ impl FontDb {
     /// Enable or disable the lazy system-font fallback for characters the loaded fonts lack
     /// (native only; on by default).
     pub fn set_system_fallback(&self, on: bool) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             self.sys.lock().unwrap_or_else(|e| e.into_inner()).enabled = on;
         }
         // Misses remembered while it was off may be found now.
         self.fallbacks.write().unwrap_or_else(|e| e.into_inner()).map.clear();
         *self.run_fallbacks.write().unwrap_or_else(|e| e.into_inner()) = RunFallbackCache::default();
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
         let _ = on;
     }
 
@@ -1021,7 +1021,7 @@ impl FontDb {
     }
 
     /// The system font catalog, scanned first if it hasn't been yet.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn read_catalog(&self) -> std::sync::RwLockReadGuard<'_, Vec<CatalogEntry>> {
         self.ensure_catalog();
         self.catalog.read().unwrap_or_else(|e| e.into_inner())
@@ -1032,7 +1032,7 @@ impl FontDb {
     /// SemiBold"), which [`FontDb::face`] resolves to that face.
     pub fn families(&self) -> Vec<String> {
         let mut v: Vec<String> = self.read_faces().iter().flat_map(|f| [f.family.clone(), f.legacy_family.clone()]).collect();
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         v.extend(self.read_catalog().iter().flat_map(|c| [c.family.clone(), c.legacy.clone()]));
         v.sort_by_key(|a| a.to_lowercase());
         v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
@@ -1043,7 +1043,7 @@ impl FontDb {
     /// Asian text font list.
     pub fn east_asian_families(&self) -> Vec<String> {
         let mut v: Vec<String> = self.read_faces().iter().filter(|f| f.is_east_asian()).map(|f| f.family.clone()).collect();
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         v.extend(self.read_catalog().iter().filter(|c| c.east_asian).map(|c| c.family.clone()));
         v.sort_by_key(|a| a.to_lowercase());
         v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
@@ -1065,7 +1065,7 @@ impl FontDb {
         for f in self.read_faces().iter() {
             add(&f.local_names);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         for c in self.read_catalog().iter() {
             add(&c.local);
         }
@@ -1090,7 +1090,7 @@ impl FontDb {
         if let Some(e) = self.read_faces().iter().find_map(|f| hit(&f.local_names)) {
             return Some(e);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(e) = self.read_catalog().iter().find_map(|c| hit(&c.local)) {
             return Some(e);
         }
@@ -1118,7 +1118,7 @@ impl FontDb {
                     .filter(|f| named(&f.family, &f.legacy_family) && !f.style.contains('{'))
                     .map(|f| (f.italic, f.weight, f.style.clone())),
             );
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             for c in self.read_catalog().iter() {
                 if named(&c.family, &c.legacy) && !v.iter().any(|(_, _, s)| s.eq_ignore_ascii_case(&c.style)) {
                     v.push((style_italic(&c.style), style_weight(&c.style), c.style.clone()));
@@ -1173,7 +1173,7 @@ impl FontDb {
 
     /// Catalog the installed fonts unless that has been done: the first caller scans the font
     /// folders, any other waits for that scan to finish.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn ensure_catalog(&self) {
         self.cataloged.get_or_init(|| {
             self.scan_font_dirs();
@@ -1184,7 +1184,7 @@ impl FontDb {
     /// (opening a file, the font menus) doesn't wait for the scan. A no-op once they are
     /// cataloged, and on wasm.
     pub fn scan_in_background(&'static self) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if self.cataloged.get().is_none() {
             // A failed spawn leaves the scan to the first lookup that needs it.
             let _ = std::thread::Builder::new().name("font-scan".into()).spawn(move || self.ensure_catalog());
@@ -1194,7 +1194,7 @@ impl FontDb {
     /// Scan the font folders again (fonts installed or removed since), cataloging the faces
     /// found (native only). Font data is loaded when a cataloged family is first resolved.
     /// Returns the number of faces cataloged.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub fn load_system_fonts(&self) -> usize {
         // The first scan, or a rescan once it is done (never both at once).
         let mut first = None;
@@ -1202,7 +1202,7 @@ impl FontDb {
         first.unwrap_or_else(|| self.scan_font_dirs())
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn scan_font_dirs(&self) -> usize {
         let mut found = Vec::new();
         let mut stack = self.font_dirs.clone();
@@ -1246,7 +1246,7 @@ impl FontDb {
     /// Load the files of the installed `family`: the whole typographic family, also when asked for
     /// by a legacy name ("Roboto Light" loads Roboto), so a family never loads with only some of
     /// its styles. Returns whether any face was added.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn load_cataloged(&self, family: &str) -> bool {
         let _loading = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         // Another lookup may have loaded it while this one waited.
@@ -1282,7 +1282,7 @@ impl FontDb {
             return f;
         }
         // Look again even when this load added nothing: another thread may have just loaded it.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             self.load_cataloged(family);
             if let Some(f) = self.find(family, style) {
@@ -1294,7 +1294,7 @@ impl FontDb {
             if let Some(f) = self.find(&en, style) {
                 return f;
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             {
                 self.load_cataloged(&en);
                 if let Some(f) = self.find(&en, style) {
@@ -1322,7 +1322,7 @@ impl FontDb {
         if let Some(f) = english.as_deref().and_then(|en| self.find(en, "Regular")) {
             return Some(f);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(f) = self.unshared_face(family).or_else(|| english.as_deref().and_then(|en| self.unshared_face(en))) {
             return Some(f);
         }
@@ -1331,7 +1331,7 @@ impl FontDb {
 
     /// The installed `family`'s face closest to Regular, read from its file into a face the
     /// database doesn't keep (see [`FontDb::preview_face`]).
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn unshared_face(&self, family: &str) -> Option<Arc<FontFace>> {
         let (path, fam, style) = {
             let cat = self.read_catalog();
@@ -1379,7 +1379,7 @@ impl FontDb {
         if self.is_loaded(family) {
             return true;
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if self.read_catalog().iter().any(|c| {
             c.family.eq_ignore_ascii_case(family)
                 || c.legacy.eq_ignore_ascii_case(family)
@@ -1543,7 +1543,7 @@ impl FontDb {
         if let Some(face) = find() {
             return Some(face);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             let enabled = self.sys.lock().unwrap_or_else(|e| e.into_inner()).enabled;
             if enabled {
@@ -1555,7 +1555,7 @@ impl FontDb {
 
     /// [`Self::search_fallback`] when no loaded face covers `c`: load a system font that does,
     /// one search at a time.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn system_search(&self, c: char, exclude: u32) -> (Option<Arc<FontFace>>, usize) {
         let _searching = self.searching.lock().unwrap_or_else(|e| e.into_inner());
         // A search that held the lock first may have loaded a font covering `c`: choose among the
@@ -1567,7 +1567,7 @@ impl FontDb {
         (found, n)
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     fn system_search(&self, _c: char, _exclude: u32) -> (Option<Arc<FontFace>>, usize) {
         (None, self.read_faces().len())
     }
@@ -1638,9 +1638,9 @@ impl FontDb {
     }
 
     fn search_run(&self, chars: &[char], exclude: u32, bold: bool, italic: bool) -> Option<Arc<FontFace>> {
-        #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
+        #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(unused_mut))]
         let mut base = self.loaded_covering(chars, exclude);
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if base.is_none() {
             // A character no loaded face covers: load a system font for it, then retry (the run's
             // other characters may already be covered by loaded faces).
@@ -1686,7 +1686,7 @@ impl FontDb {
     /// Load a system font covering `c` (preferred fallback families first, then any cataloged
     /// file under 40 MB, found through the coverage index). Returns true if one was loaded.
     /// Misses are remembered.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn system_fallback(&self, c: char) -> bool {
         if c.is_control() || c.is_whitespace() {
             return false;
@@ -1727,7 +1727,7 @@ impl FontDb {
 
     /// Load the first cataloged font file (in path order) that maps `c`, reading each file not
     /// yet indexed as the search reaches it. Returns whether a loaded face now covers `c`.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn indexed_fallback(&self, c: char) -> bool {
         let cp = u32::from(c);
         let mut index = self.coverage.lock().unwrap_or_else(|e| e.into_inner());
@@ -1812,7 +1812,7 @@ impl OutlinePen for FlipPen {
 }
 
 #[cfg(test)]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[path = "tests_sysfonts.rs"]
 mod tests_sysfonts;
 

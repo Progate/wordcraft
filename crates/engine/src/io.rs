@@ -2,7 +2,7 @@
 
 use wordcraft_doc::Document;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod safe_save;
 
 /// Formats WordCraft opens.
@@ -100,13 +100,13 @@ pub fn wrong_password(err: &str) -> bool {
 /// Is the file at `path` empty, zero bytes long? File Explorer's New › Microsoft Word Document
 /// makes one, and `file.open` opens it as a new blank document (#1384). False for a file that
 /// can't be read: opening it says why.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn is_empty_file(path: &std::path::Path) -> bool {
     crate::file_access::check_read(&path.to_string_lossy()).is_ok() && std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() == 0)
 }
 
 /// [`is_empty_file`]: on the web files come through the browser, never by path.
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn is_empty_file(_path: &std::path::Path) -> bool {
     false
 }
@@ -390,13 +390,13 @@ pub fn open_path(path: &std::path::Path) -> Result<Document, String> {
 }
 
 /// [`open_path`] for a file that may be password-protected (see [`open_bytes_with`]).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn open_path_with(path: &std::path::Path, password: Option<&str>) -> Result<(Document, bool), String> {
     open_path_in(path, password, &wordcraft_geom::Region::default())
 }
 
 /// [`open_path_with`] in `region` (see [`open_bytes_in`]).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn open_path_in(path: &std::path::Path, password: Option<&str>, region: &wordcraft_geom::Region) -> Result<(Document, bool), String> {
     crate::file_access::check_read(&path.to_string_lossy())?;
     let meta = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -424,7 +424,7 @@ pub fn open_path_in(path: &std::path::Path, password: Option<&str>, region: &wor
 /// (`http:`, `file:`…) and absolute paths are not followed. Each file is read at most once and
 /// at most `max_file` bytes of it; every reference, cached or not, counts against a budget for
 /// the whole document, so one large picture can't be multiplied by referencing it many times.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) struct LocalImages {
     /// The folder, canonical; `None` when it can't be resolved (nothing loads then).
     dir: Option<std::path::PathBuf>,
@@ -434,7 +434,7 @@ pub(crate) struct LocalImages {
     cache: std::cell::RefCell<Vec<(std::path::PathBuf, std::sync::Arc<Vec<u8>>)>>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl LocalImages {
     /// Largest picture file read.
     const MAX_FILE: u64 = 256 << 20;
@@ -505,7 +505,7 @@ impl LocalImages {
 /// `None` for anything else. A named pipe blocks when opened and a device reports a length of 0
 /// and may never end, so the path is checked before opening, the opened handle is checked again,
 /// and the read is bounded whatever length the file reports.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn read_regular_file(path: &std::path::Path, limit: u64) -> Option<Vec<u8>> {
     use std::io::Read;
     if !std::fs::metadata(path).ok()?.is_file() {
@@ -523,20 +523,20 @@ fn read_regular_file(path: &std::path::Path, limit: u64) -> Option<Vec<u8>> {
 
 /// The bytes of the file at `path`, for commands that take a path (pictures, mail-merge data).
 /// Every such read goes through here so the automation read root applies ([`crate::file_access`]).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn read_file(path: &str) -> Result<Vec<u8>, String> {
     crate::file_access::check_read(path)?;
     std::fs::read(path).map_err(|e| format!("{path}: {e}"))
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn read_file(path: &str) -> Result<Vec<u8>, String> {
     Err(format!("{path}: files are opened through the browser on the web"))
 }
 
 /// [`read_file`] for a file that must be a regular file of at most `max` bytes, checked before
 /// anything is read (a font named by the user, which could be any size).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn read_file_capped(path: &str, max: u64, what: &str) -> Result<Vec<u8>, String> {
     crate::file_access::check_read(path)?;
     let meta = std::fs::metadata(path).map_err(|e| format!("{path}: {e}"))?;
@@ -551,7 +551,7 @@ pub fn read_file_capped(path: &str, max: u64, what: &str) -> Result<Vec<u8>, Str
 
 /// The first `max` bytes of the file at `path` (fewer when it is shorter), inside the automation
 /// read root when there is one: enough to tell a file's format by its start.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn read_file_head(path: &str, max: u64) -> Result<Vec<u8>, String> {
     use std::io::Read;
     crate::file_access::check_read(path)?;
@@ -562,7 +562,7 @@ pub fn read_file_head(path: &str, max: u64) -> Result<Vec<u8>, String> {
 }
 
 /// Rename without replacing another file, respecting both automation access roots.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn rename_file(source: &std::path::Path, destination: &std::path::Path) -> Result<(), String> {
     crate::file_access::check_read(&source.to_string_lossy())?;
     crate::file_access::check_write(&source.to_string_lossy())?;
@@ -583,7 +583,7 @@ pub fn rename_file(source: &std::path::Path, destination: &std::path::Path) -> R
 
 /// Whether `destination` names `source` in the same directory spelled with different case, and
 /// the directory holds no entry spelled exactly as `destination`.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn only_case_differs(source: &std::path::Path, destination: &std::path::Path) -> bool {
     let (Some(dir), Some(from), Some(to)) = (source.parent(), source.file_name(), destination.file_name()) else {
         return false;
@@ -596,24 +596,24 @@ fn only_case_differs(source: &std::path::Path, destination: &std::path::Path) ->
 }
 
 /// Write `bytes` to the file at `path`, inside the automation write root when there is one.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
     crate::file_access::check_write(path)?;
     // Like a document save: the old file is replaced only once the new bytes are fully written.
     safe_save::write(std::path::Path::new(path), bytes).map_err(|e| format!("{path}: {e}"))
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn write_file(path: &str, _bytes: &[u8]) -> Result<(), String> {
     Err(format!("{path}: files are saved through the browser on the web"))
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn open_path_with(path: &std::path::Path, _password: Option<&str>) -> Result<(Document, bool), String> {
     Err(format!("{}: files are opened through the browser on the web", path.display()))
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn open_path_in(path: &std::path::Path, password: Option<&str>, _region: &wordcraft_geom::Region) -> Result<(Document, bool), String> {
     open_path_with(path, password)
 }
@@ -623,14 +623,14 @@ pub fn save_path(path: &std::path::Path, doc: &Document) -> Result<(), String> {
 }
 
 /// [`save_path`], encrypted with `password` as [`save_bytes_with`] does.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn save_path_with(path: &std::path::Path, doc: &Document, password: Option<&str>, opts: &ExportOptions) -> Result<(), String> {
     crate::file_access::check_write(&path.to_string_lossy())?;
     let bytes = save_bytes_with(&path.to_string_lossy(), doc, password, opts)?;
     safe_save::write(path, &bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub fn save_path_with(path: &std::path::Path, _doc: &Document, _password: Option<&str>, _opts: &ExportOptions) -> Result<(), String> {
     Err(format!("{}: files are saved through the browser on the web", path.display()))
 }

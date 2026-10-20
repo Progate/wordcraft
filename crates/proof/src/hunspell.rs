@@ -70,7 +70,7 @@ pub fn search_dirs(lo_exts: Option<&[String]>) -> Vec<PathBuf> {
     if let Some(d) = EXTRA_DIR.read().unwrap_or_else(|e| e.into_inner()).clone() {
         dirs.push(d);
     }
-    if cfg!(target_arch = "wasm32") {
+    if cfg!(all(target_arch = "wasm32", target_os = "unknown")) {
         return dirs;
     }
     if let Some(d) = std::env::var_os("WORDCRAFT_DICTIONARIES").filter(|v| !v.is_empty()) {

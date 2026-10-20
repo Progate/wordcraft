@@ -31,7 +31,7 @@ const MAX_SENTENCES: usize = 20_000;
 pub const MIN_RATE: f32 = 0.5;
 pub const MAX_RATE: f32 = 3.0;
 /// Words per minute at speed 1.0 (`say` and `espeak` both default to about this).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const BASE_WPM: f32 = 180.0;
 
 /// Words that end with a full stop without ending the sentence.
@@ -367,7 +367,7 @@ fn mac_default_voice_language() -> &'static str {
 /// and the program then exited with a failure: espeak-ng does that, silently, for a voice it
 /// doesn't know, and a missing voice must never mean silence. `exited_ok` is `None` when the
 /// program didn't exit on its own (stopped, or never started).
-#[cfg(any(not(target_arch = "wasm32"), test))]
+#[cfg(any(not(all(target_arch = "wasm32", target_os = "unknown")), test))]
 fn retry_without_voice(gave_voice: bool, exited_ok: Option<bool>) -> bool {
     gave_voice && exited_ok == Some(false)
 }
@@ -501,7 +501,7 @@ struct Shared {
     generation: u64,
     error: Option<String>,
     /// A worker thread is running (cleared under the lock as it exits).
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
     running: bool,
 }
 
@@ -639,7 +639,7 @@ impl ReadAloud {
         })
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
     fn ensure_worker(&mut self) {
         let (m, _) = &*self.shared;
         let mut s = lock(m);
@@ -649,7 +649,7 @@ impl ReadAloud {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     fn ensure_worker(&mut self) {
         let mut s = lock(&self.shared.0);
         if s.state != State::Playing || s.running {
@@ -677,14 +677,14 @@ impl Drop for ReadAloud {
 }
 
 /// How a sentence ended.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 enum Spoken {
     Done,
     Interrupted,
     Failed(String),
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn worker(shared: &(Mutex<Shared>, Condvar), backend: Backend) {
     let (m, cv) = shared;
     loop {
@@ -795,7 +795,7 @@ fn windows_speech(system_root: Option<std::ffi::OsString>, rate: f32, lang: Opti
 
 /// Speak one sentence with the system's speech program, stopping early when `changed()`. When
 /// the program fails with the sentence's voice, the default voice says it instead.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn speak(text: &str, lang: Option<&str>, rate: f32, changed: &dyn Fn() -> bool) -> Spoken {
     let (spoken, gave_voice, exited_ok) = speak_with(text, lang, rate, changed);
     if retry_without_voice(gave_voice, exited_ok) {
@@ -806,7 +806,7 @@ fn speak(text: &str, lang: Option<&str>, rate: f32, changed: &dyn Fn() -> bool) 
 
 /// [`speak`] in `lang`'s voice once: how it ended, whether the program was given a voice, and
 /// whether it exited successfully (`None` when it didn't exit on its own).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn speak_with(text: &str, lang: Option<&str>, rate: f32, changed: &dyn Fn() -> bool) -> (Spoken, bool, Option<bool>) {
     use std::io::Write;
     use std::process::{Command, Stdio};
