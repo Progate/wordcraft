@@ -119,7 +119,9 @@ fn candidates(hans: bool, korean: bool) -> Vec<&'static str> {
                 "truetype/wqy/wqy-zenhei.ttc",
                 "truetype/droid/DroidSansFallbackFull.ttf",
             ],
-            &["noto-cjk/NotoSansCJKjp-Regular.otf", "opentype/noto/NotoSansCJKjp-Regular.otf"],
+            // The last: Noto Sans JP as Google Fonts ships it (the region subset of Noto Sans CJK JP),
+            // which BrowserOS installs (`@progate/browser-word`).
+            &["noto-cjk/NotoSansCJKjp-Regular.otf", "opentype/noto/NotoSansCJKjp-Regular.otf", "opentype/noto/NotoSansJP-Regular.otf"],
             &[
                 "noto-cjk/NotoSansCJKkr-Regular.otf",
                 "opentype/noto/NotoSansCJKkr-Regular.otf",

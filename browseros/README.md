@@ -16,6 +16,13 @@ holds what the WordCraft crates need to build and run there.
   through `[patch.crates-io]`). Upstream's wasm thread parker panics as soon as a lock is contended unless the
   nightly feature is on; the std of `wasm32-wasip1-threads` implements park / unpark with
   `memory.atomic.wait32` / `notify`, so `thread_parker/wasi.rs` waits on that. The rest is crates.io's 0.9.12.
+- **The built-in file browser can be the file dialog** (`Services::builtin_file_dialog`). BrowserOS has no system
+  dialog; Open, Save As and Insert › Pictures show the built-in browser without the "system dialog isn't
+  available" note, and it lists BrowserOS's own file system.
+- **The community links can be turned off** (`WordApp::community_links`): the Discord button in the title bar,
+  the File sidebar entry, Help › Community Discord, the About dialog's link and the Options checkbox.
+- **Noto Sans JP (as Google Fonts ships it) is a Japanese interface font candidate**
+  (`opentype/noto/NotoSansJP-Regular.otf`), which `@progate/browser-word` installs under `/usr/share/fonts`.
 
 ## License
 

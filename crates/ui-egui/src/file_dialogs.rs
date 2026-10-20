@@ -141,6 +141,12 @@ impl WordApp {
             // A host that answered at once (or failed to show anything) is handled right away.
             return self.poll_file_dialog().map_or(Asked::Pending, Asked::Done);
         }
+        // A host whose only file dialog is the built-in browser (BrowserOS).
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        if self.services.builtin_file_dialog {
+            self.show_file_browser(req, after, false);
+            return Asked::Pending;
+        }
         let picked = match &req {
             FileDialogRequest::Open { purpose } | FileDialogRequest::OpenMany { purpose } => {
                 self.services.pick_open.as_ref().and_then(|f| f(purpose))

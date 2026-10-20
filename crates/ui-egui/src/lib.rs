@@ -110,6 +110,10 @@ pub struct Services {
     /// sender counts as cancelled. An `Err` says no system dialog could be shown, and the app shows
     /// its built-in file browser instead (#576). The app shows one dialog at a time ([`file_dialogs`]).
     pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> std::sync::mpsc::Receiver<FileDialogAnswer>>>,
+    /// The built-in file browser is the file dialog (a host with no system dialog, such as
+    /// BrowserOS): Open, Save As and Insert › Pictures show it without saying that a system dialog
+    /// couldn't be shown. Native only.
+    pub builtin_file_dialog: bool,
     /// Web: open a file picker; the file arrives later through `inbox`.
     pub open_async: Option<Box<dyn Fn(&str)>>,
     /// Web: files (name, bytes) delivered asynchronously (picker, drag and drop).
@@ -524,6 +528,9 @@ pub struct WordApp {
     pub(crate) dialog_pick: Option<String>,
     /// macOS: the window has no title bar; leave room for the traffic lights.
     pub integrated_titlebar: bool,
+    /// Show the ArtCraft community (Discord) links: the title bar button, File's sidebar, Help and
+    /// About. A host that embeds WordCraft in its own product turns them off.
+    pub community_links: bool,
     /// macOS: the title bar's height and where its content starts, around the traffic lights.
     pub mac_titlebar: chrome::MacTitleBar,
     control_rx: Option<std::sync::mpsc::Receiver<ControlRequest>>,
@@ -664,6 +671,7 @@ impl WordApp {
             status_msg: None,
             previews: previews::Previews::default(),
             integrated_titlebar: false,
+            community_links: true,
             mac_titlebar: chrome::MacTitleBar::default(),
             control_rx: None,
             shot_token: 0,
@@ -1680,6 +1688,7 @@ impl WordApp {
                         .into(),
                 ));
             }
+            "ui.discord" if !self.community_links => return Some(Err("the community links are turned off".into())),
             "ui.discord" => {
                 self.canvas.open_url = Some("https://discord.gg/artcraft".into());
                 json!({})
