@@ -23,7 +23,9 @@ pub(super) fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let private = permissions.is_some();
     let written = replace_with(path, private, |file| {
         file.write_all(bytes)?;
-        if let Some(permissions) = permissions {
+        // WASI preview 1 has no file modes: `fchmod` always fails with ENOSYS there, so carrying the
+        // old mode over would make every save over an existing document fail.
+        if let Some(permissions) = permissions.filter(|_| !cfg!(target_os = "wasi")) {
             file.set_permissions(permissions)?;
         }
         // Synchronize the prepared file before replacing the destination. Directory durability

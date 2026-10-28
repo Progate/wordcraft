@@ -25,6 +25,9 @@ holds what the WordCraft crates need to build and run there.
   (`opentype/noto/NotoSansJP-Regular.otf`), which `@progate/browser-word` installs under `/usr/share/fonts`.
 - **Temporary names don't use the process id on WASI** (`engine/src/io/safe_save.rs`, `proof/src/lib.rs`).
   `std::process::id` panics there; the safe save stays collision-free through `create_new` and its retry.
+- **Saving over an existing document doesn't copy its mode on WASI** (`engine/src/io/safe_save.rs`). WASI preview 1
+  has no file modes, so `File::set_permissions` (`fchmod`) always fails with ENOSYS and every Ctrl+S on an opened
+  file failed with "Function not implemented (os error 52)". New documents never took that path.
 
 ## License
 
