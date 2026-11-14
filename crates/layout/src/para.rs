@@ -375,6 +375,10 @@ pub struct ParaLayout {
     /// equations) rather than for the paragraph's own text, by cluster index, sorted, with each of
     /// the cluster's glyphs' byte range in that text (a ligature's glyph spans its letters).
     pub shown: Vec<(usize, String, Vec<std::ops::Range<usize>>)>,
+    /// Glyphs drawn in another style (font) than their cluster's, sorted by glyph index: a field
+    /// result that mixes scripts ("図 4") is one cluster, but its kanji and digits can come from
+    /// different faces, and a glyph id means something only in its own face.
+    pub glyph_styles: Vec<(std::ops::Range<u32>, u32)>,
     /// Shapes drawn around overstruck field text (enclosed characters, `EQ \o`), by cluster index.
     pub enclosures: Vec<(usize, Enclosed)>,
     /// Room after a cluster between Asian text and Latin text or digits ([`auto_space`]), by
@@ -588,6 +592,8 @@ struct Builder<'a> {
     levels: Vec<u8>,
     /// Text drawn by clusters that stand for an object, by cluster index (see `ParaLayout::shown`).
     shown: Vec<(usize, String, Vec<std::ops::Range<usize>>)>,
+    /// Glyphs drawn in another style than their cluster's (see `ParaLayout::glyph_styles`).
+    glyph_styles: Vec<(std::ops::Range<u32>, u32)>,
 }
 
 /// What a piece of text is shaped as: one face, case, script formatting and direction.
@@ -1150,6 +1156,46 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// Record which glyphs of `pieces`, about to be merged into one cluster of style `style`, are
+    /// drawn in another style (see `ParaLayout::glyph_styles`). A glyph keeps the style it was
+    /// shaped in, or the one already recorded for it (overstruck text merges field results that
+    /// were merged before).
+    fn keep_glyph_styles(&mut self, pieces: &[Cluster], style: u32) {
+        let Some(g0) = pieces.first().map(|c| c.g0) else { return };
+        // The pieces are the glyphs shaped last, in glyph order, so the records inside them are
+        // the table's tail: take them out and write the span again, which keeps the table sorted
+        // in one pass (a paragraph of many fields, such as a table of contents, stays linear).
+        let at = self.glyph_styles.partition_point(|(r, _)| r.start < g0);
+        let inner = self.glyph_styles.split_off(at);
+        let mut inner = inner.iter().peekable();
+        for c in pieces {
+            for gi in c.g0..c.g1 {
+                while inner.next_if(|(r, _)| r.end <= gi).is_some() {}
+                let s = inner.peek().filter(|(r, _)| r.contains(&gi)).map_or(c.style, |(_, s)| *s);
+                if s == style {
+                    continue;
+                }
+                match self.glyph_styles.last_mut() {
+                    Some((r, rs)) if *rs == s && r.end == gi => r.end = gi + 1,
+                    _ => self.glyph_styles.push((gi..gi + 1, s)),
+                }
+            }
+        }
+    }
+
+    /// Drop the glyphs from `n` on (text shaped only to be measured or copied elsewhere), and
+    /// their records in `glyph_styles`, which would otherwise restyle the glyphs shaped next.
+    fn truncate_glyphs(&mut self, n: usize) {
+        self.glyphs.truncate(n);
+        let n = n as u32;
+        while self.glyph_styles.last().is_some_and(|(r, _)| r.start >= n) {
+            self.glyph_styles.pop();
+        }
+        if let Some((r, _)) = self.glyph_styles.last_mut() {
+            r.end = r.end.min(n);
+        }
+    }
+
     /// One cluster for a whole object with its display text (fields, note references).
     fn shape_atomic(&mut self, text: &str, start: usize, end: usize, rc: &Arc<ResolvedChar>) {
         // Right-to-left text in the result reads like ordinary text (UAX #9, #1670): the result is
@@ -1208,6 +1254,10 @@ impl<'a> Builder<'a> {
         let g0 = first.g0;
         let style = first.style;
         let g1 = added.last().map(|c| c.g1).unwrap_or(g0);
+        // The merged cluster takes the first piece's style, so glyphs that fell back to another
+        // face (the digit after a kanji, from the Latin font) would otherwise be drawn as that
+        // gid in the first piece's face (図 4 showed as 図"6): keep each piece's own style.
+        self.keep_glyph_styles(&added, style);
         self.shown.push((self.clusters.len(), text.to_string(), ranges));
         self.clusters.push(Cluster { start, end, adv: x, kind: ClKind::Text, style, g0, g1, break_after: false, obj_h: 0.0, obj_d: 0.0, dot: false });
     }
@@ -1258,6 +1308,8 @@ impl<'a> Builder<'a> {
             Some(c) => c.style,
             None => self.style(rc, None, false),
         };
+        // Each text drawn on top keeps its own face (see `keep_glyph_styles`).
+        self.keep_glyph_styles(&added, style);
         let k = self.clusters.len();
         if !text.is_empty() {
             self.shown.push((k, text, ranges));
@@ -1298,7 +1350,7 @@ fn overstrike(
     }
     let w0 = b.clusters.get(c0..).map(|cs| cs.iter().map(|c| c.adv).fold(0.0f32, f32::max)).unwrap_or(0.0).max(0.0);
     b.clusters.truncate(c0);
-    b.glyphs.truncate(g0);
+    b.truncate_glyphs(g0);
     b.shown.truncate(s0);
     // The shape's box (`bw` × `bh`, centred `cy` above the baseline) and the text's size.
     let cy = s * 0.34;
@@ -1397,7 +1449,7 @@ impl Builder<'_> {
             }
             x += c.adv + gap;
         }
-        self.glyphs.truncate(bg);
+        self.truncate_glyphs(bg);
         // The base text centres (or aligns) under a wider ruby.
         let shift = lead(w - base_w);
         let ascent = cl.iter().filter_map(|c| self.styles.get(c.style as usize)).map(|s| s.ascent).fold(0.0f32, f32::max);
@@ -1454,8 +1506,16 @@ pub fn layout_para(p: &Paragraph, env: &ParaEnv) -> ParaLayout {
     }
     let resolve = |c: &CharProps| -> Arc<ResolvedChar> { Arc::new(doc.styles.resolve_char_in(para_style, table_chr, c)) };
     let levels = bidi_levels(&p.text, rp.bidi);
-    let mut b =
-        Builder { env, styles: Vec::new(), style_index: Default::default(), glyphs: Vec::new(), clusters: Vec::new(), levels, shown: Vec::new() };
+    let mut b = Builder {
+        env,
+        styles: Vec::new(),
+        style_index: Default::default(),
+        glyphs: Vec::new(),
+        clusters: Vec::new(),
+        levels,
+        shown: Vec::new(),
+        glyph_styles: Vec::new(),
+    };
     let mark_rc = resolve(&p.mark);
     let mark_style = b.style(&mark_rc, None, false);
     let mut has_page_fields = false;
@@ -1844,7 +1904,7 @@ pub fn layout_para(p: &Paragraph, env: &ParaEnv) -> ParaLayout {
             }
             x += c.adv;
         }
-        b.glyphs.truncate(before_g);
+        b.truncate_glyphs(before_g);
         Label { text: shown(text), ascent, style, glyphs, runs, x: 0.0, width: x }
     });
 
@@ -1854,6 +1914,7 @@ pub fn layout_para(p: &Paragraph, env: &ParaEnv) -> ParaLayout {
         glyphs: b.glyphs,
         clusters: b.clusters,
         shown: b.shown,
+        glyph_styles: b.glyph_styles,
         lines: Vec::new(),
         label,
         height: 0.0,
@@ -2881,6 +2942,13 @@ fn resolve_tab(pl: &mut ParaLayout, pending: &mut Option<(usize, TabStop, f32)>,
 }
 
 impl ParaLayout {
+    /// The style glyph `gi` of a cluster styled `cluster_style` is drawn in: its own when a merged
+    /// cluster (a field result) took it from another face (see `glyph_styles`).
+    pub fn glyph_style(&self, gi: u32, cluster_style: u32) -> u32 {
+        let k = self.glyph_styles.partition_point(|(r, _)| r.end <= gi);
+        self.glyph_styles.get(k).filter(|(r, _)| r.contains(&gi)).map_or(cluster_style, |(_, s)| *s)
+    }
+
     /// The automatic space in cluster `k`'s advance ([`auto_space`]), 0 without one.
     fn auto_space_after(&self, k: usize) -> f32 {
         self.auto_space.binary_search_by_key(&k, |a| a.0).ok().and_then(|i| self.auto_space.get(i)).map_or(0.0, |a| a.1)

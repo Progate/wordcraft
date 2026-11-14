@@ -5819,6 +5819,47 @@ fn enclosed_characters_draw_a_shape_around_the_text() {
     assert!(items.iter().any(|i| matches!(i, display::Draw::Glyphs { text, .. } if text.contains("=/"))), "{items:?}");
 }
 
+/// A field result mixing scripts is one cluster whose glyphs come from several faces (the kanji
+/// from a CJK fallback, the digits from the Latin font): each glyph is drawn in its own face, not
+/// as that glyph id in the first one's (図 4 showed as 図"6, a citation's name as Latin letters).
+/// Enclosed text, measured at the run's size and shaped again smaller, is drawn at the smaller size.
+#[test]
+fn a_field_result_mixing_scripts_draws_each_glyph_in_its_own_face() {
+    use wordcraft_doc::eq::{EncloseShape, EncloseStyle, Enclosure};
+    if wordcraft_fonts::FontDb::global().fallback_for('図', 0).is_none() {
+        eprintln!("skipped: no Japanese font installed");
+        return;
+    }
+    // Each glyph drawn as (character, size), checking it is that character's glyph in its face.
+    let drawn = |instr: String, result: &str| {
+        let mut d = Document::from_text("漢漢");
+        let field = InlineObject::Field { instr, result: result.into(), locked: false, dirty: false, code: false, form: String::new() };
+        d.insert_object(&Pos::body(0, 3), field, &Default::default()).unwrap();
+        let l = lay(&d);
+        let mut out = Vec::new();
+        for it in display::page_display(&d, &l.pages[0], &Default::default()) {
+            let display::Draw::Glyphs { face, size, glyphs, text, ranges, .. } = it else { continue };
+            for ((gid, _, _), r) in glyphs.iter().zip(&ranges) {
+                let Some(ch) = text.get(r.clone()).and_then(|t| t.chars().next()) else { continue };
+                if !ch.is_whitespace() {
+                    assert_eq!(*gid, face.glyph_for(ch), "{ch:?} of {result:?} drawn as another glyph of its face");
+                }
+                out.push((ch, size));
+            }
+        }
+        out
+    };
+    for result in ["図 4", "(川原, 2019)", "Fig 4 図"] {
+        let chars: String = drawn("REF _Ref1 \\h".into(), result).iter().map(|c| c.0).collect();
+        assert!(result.chars().filter(|c| !c.is_whitespace()).all(|c| chars.contains(c)), "{result:?} drawn as {chars:?}");
+    }
+    let e = Enclosure { shape: EncloseShape::Circle, style: EncloseStyle::Shrink, text: "図4".into() };
+    let glyphs = drawn(e.instr(), "図4");
+    let size_of = |ch: char| glyphs.iter().find(|g| g.0 == ch).map(|g| g.1).unwrap_or_else(|| panic!("{ch:?} not drawn: {glyphs:?}"));
+    let base = size_of('漢');
+    assert!(size_of('図') < base * 0.8 && (size_of('4') - size_of('図')).abs() < 0.01, "both shrink: {glyphs:?}");
+}
+
 #[test]
 fn ruby_text_sits_over_its_base_and_the_line_grows_to_fit() {
     use wordcraft_doc::para::RubyAlign;

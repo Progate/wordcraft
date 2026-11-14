@@ -830,6 +830,9 @@ fn lines(
                 continue;
             };
             let mut glyphs = Vec::new();
+            // Each glyph's style, once a glyph in another style than the run's turns up (a field
+            // result's cluster can hold glyphs of several faces); empty for ordinary text.
+            let mut gstyles: Vec<u32> = Vec::new();
             let mut text = String::new();
             let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
             let run_start = k;
@@ -871,6 +874,17 @@ fn lines(
                     }
                     let b = text.len();
                     let cg = pl.glyphs.get(c.g0 as usize..c.g1 as usize).unwrap_or(&[]);
+                    // Only an object's cluster can hold glyphs of other styles (`ParaLayout::glyph_styles`).
+                    let mixed = shown.is_some() && !pl.glyph_styles.is_empty();
+                    let style_of = |n: usize, gstyles: &mut Vec<u32>, before: usize| {
+                        let gs = if mixed { pl.glyph_style(c.g0 + n as u32, si) } else { si };
+                        if gs != si && gstyles.is_empty() {
+                            gstyles.resize(before, si);
+                        }
+                        if !gstyles.is_empty() {
+                            gstyles.push(gs);
+                        }
+                    };
                     if let Some(shown) = shown
                         && cg.len() > 1
                     {
@@ -888,6 +902,7 @@ fn lines(
                                     from..to
                                 }
                             };
+                            style_of(n, &mut gstyles, glyphs.len());
                             glyphs.push((g.gid, cx + g.dx, base - st.shift - g.dy));
                             ranges.push(r.start..r.end.max(r.start));
                         }
@@ -902,7 +917,8 @@ fn lines(
                             r.end = b;
                         }
                     }
-                    for g in cg {
+                    for (n, g) in cg.iter().enumerate() {
+                        style_of(n, &mut gstyles, glyphs.len());
                         glyphs.push((g.gid, cx + g.dx, base - st.shift - g.dy));
                         ranges.push(a..b);
                     }
@@ -969,15 +985,39 @@ fn lines(
                 }
                 continue;
             }
-            if del_mark == Some(DeleteMark::Hash) {
-                // Each deleted character shows as #.
-                let gid = st.face.glyph_for('#');
-                for g in &mut glyphs {
-                    g.0 = gid;
+            // Runs of glyphs in one face: a glyph id means something only in its own face, and a
+            // field result such as 図 4 is one cluster whose kanji and digit come from two faces.
+            let mut pieces: Vec<(&crate::para::StyleRun, std::ops::Range<usize>)> = Vec::new();
+            if gstyles.is_empty() && !glyphs.is_empty() {
+                pieces.push((st, 0..glyphs.len()));
+            }
+            for (i, &gs) in gstyles.iter().enumerate() {
+                match pieces.last_mut() {
+                    Some((_, r)) if gstyles.get(r.start) == Some(&gs) => r.end = i + 1,
+                    _ => pieces.push((pl.styles.get(gs as usize).unwrap_or(st), i..i + 1)),
                 }
             }
-            let synth_bold = st.synth_bold || ins_mark == Some(InsertMark::Bold) || del_mark == Some(DeleteMark::Bold);
-            let synth_italic = st.synth_italic || ins_mark == Some(InsertMark::Italic) || del_mark == Some(DeleteMark::Italic);
+            // Glyph positions were taken with the run's raise; a piece in another style uses its own.
+            for (pst, r) in &pieces {
+                let dy = st.shift - pst.shift;
+                if dy != 0.0 {
+                    for g in glyphs.get_mut(r.clone()).into_iter().flatten() {
+                        g.2 += dy;
+                    }
+                }
+            }
+            if del_mark == Some(DeleteMark::Hash) {
+                // Each deleted character shows as #.
+                for (pst, r) in &pieces {
+                    let gid = pst.face.glyph_for('#');
+                    for g in glyphs.get_mut(r.clone()).into_iter().flatten() {
+                        g.0 = gid;
+                    }
+                }
+            }
+            let mark_bold = ins_mark == Some(InsertMark::Bold) || del_mark == Some(DeleteMark::Bold);
+            let mark_italic = ins_mark == Some(InsertMark::Italic) || del_mark == Some(DeleteMark::Italic);
+            let synth_bold = st.synth_bold || mark_bold;
             // Text effects draw the letters from their outlines; the glyphs stay, invisible, for
             // the PDF's text. Not for colour glyphs (no outlines), top-to-bottom text with upright
             // characters (their outlines would lie on their side), `#` deletion marks, or WordArt
@@ -989,29 +1029,55 @@ fn lines(
                 && (rc.text_effects.is_none() || ins.is_none() && del.is_none()))
             .then(|| crate::wordart::run_effects(rc, color))
             .flatten()
-            .filter(|_| !st.face.has_color_glyphs());
+            .filter(|_| !pieces.iter().any(|(pst, _)| pst.face.has_color_glyphs()));
             let has_art = art.is_some();
             if let Some(mut fx) = art {
                 if synth_bold {
                     crate::wordart::embolden(&mut fx, color, st.size);
                 }
-                let path = crate::wordart::glyph_path(&st.face, st.size, &glyphs, synth_italic);
+                let mut path = BezPath::new();
+                for (pst, r) in &pieces {
+                    let italic = mark_italic || pst.synth_italic;
+                    for el in crate::wordart::glyph_path(&pst.face, pst.size, glyphs.get(r.clone()).unwrap_or(&[]), italic).elements() {
+                        path.push(*el);
+                    }
+                }
                 out.push(Draw::Art { path, fx: Box::new(fx), color, alpha, text_bg });
             }
-            if !glyphs.is_empty() {
+            if let [(pst, _)] = pieces.as_slice() {
                 out.push(Draw::Glyphs {
-                    face: st.face,
-                    size: st.size,
+                    face: pst.face,
+                    size: pst.size,
                     glyphs,
                     color,
                     alpha: if has_art { 0.0 } else { alpha },
-                    synth_bold,
-                    synth_italic,
+                    synth_bold: mark_bold || pst.synth_bold,
+                    synth_italic: mark_italic || pst.synth_italic,
                     text,
                     link: rc.link.clone(),
                     ranges,
                     text_bg,
                 });
+            } else {
+                // One draw per face, each with the text its glyphs stand for.
+                for (pst, r) in &pieces {
+                    let rs = ranges.get(r.clone()).unwrap_or(&[]);
+                    let lo = rs.iter().map(|x| x.start).min().unwrap_or(0);
+                    let hi = rs.iter().map(|x| x.end).max().unwrap_or(lo);
+                    out.push(Draw::Glyphs {
+                        face: pst.face,
+                        size: pst.size,
+                        glyphs: glyphs.get(r.clone()).unwrap_or(&[]).to_vec(),
+                        color,
+                        alpha: if has_art { 0.0 } else { alpha },
+                        synth_bold: mark_bold || pst.synth_bold,
+                        synth_italic: mark_italic || pst.synth_italic,
+                        text: text.get(lo..hi).unwrap_or("").to_string(),
+                        link: rc.link.clone(),
+                        ranges: rs.iter().map(|x| x.start - lo..x.end - lo).collect(),
+                        text_bg,
+                    });
+                }
             }
             // Decorations across the run (underline skips trailing spaces of the line). Right-to-left
             // text inside a run can split it into several visual spans.
