@@ -19,16 +19,26 @@ use wordcraft_metafile::{Item, Picture, PlacedItem, Seg};
 mod color_glyph;
 pub mod icon_lib;
 
-/// Worker threads for rasterising (0 on the web, where there are no threads).
+/// Worker threads for rasterising. None on wasm: the web has no threads, and on BrowserOS every render would
+/// start a new pool of threads (a Web Worker each), which costs far more than the frame it shares.
 pub fn default_threads() -> u16 {
-    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    #[cfg(target_arch = "wasm32")]
     {
         0
     }
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    #[cfg(not(target_arch = "wasm32"))]
     {
         std::thread::available_parallelism().map(|n| (n.get().saturating_sub(1)).clamp(1, 8) as u16).unwrap_or(2)
     }
+}
+
+/// Settings for `num_threads` workers. Not through `RenderSettings::default()`: that asks
+/// `available_parallelism` for its own thread count on every call, which reads cgroup files on Linux
+/// (several milliseconds a frame on BrowserOS) only to be overridden here.
+pub(crate) fn render_settings(num_threads: u16) -> vello_cpu::RenderSettings {
+    use vello_cpu::Level;
+    static LEVEL: std::sync::OnceLock<Level> = std::sync::OnceLock::new();
+    vello_cpu::RenderSettings { level: *LEVEL.get_or_init(|| Level::try_detect().unwrap_or(Level::baseline())), num_threads }
 }
 
 /// Largest raster side vello_cpu handles comfortably.
@@ -519,7 +529,7 @@ fn render_region_capped(doc: &Document, page: &Page, w: u32, h: u32, view: Affin
     // Over the cap the whole picture is drawn smaller, not cropped.
     let view = if (cw, ch) == (w, h) { view } else { Affine::scale_non_uniform(cw as f64 / w as f64, ch as f64 / h as f64) * view };
     let (w16, h16) = (cw as u16, ch as u16);
-    let mut ctx = RenderContext::new_with(w16, h16, vello_cpu::RenderSettings { num_threads: default_threads(), ..Default::default() });
+    let mut ctx = RenderContext::new_with(w16, h16, render_settings(default_threads()));
     ctx.set_transform(Affine::IDENTITY);
     ctx.set_paint(color(opts.ink(doc.settings.page_color.unwrap_or(opts.paper)), 1.0));
     ctx.fill_rect(&kurbo::Rect::new(0.0, 0.0, w16 as f64, h16 as f64));
@@ -604,7 +614,7 @@ pub fn render_text_line(face: &wordcraft_fonts::FontFace, text: &str, size: f32,
     let (pw, ph) = (((w * scale).ceil() as u32).clamp(1, MAX_SIDE), ((h * scale).ceil() as u32).clamp(1, MAX_SIDE));
     let (cw, ch) = wordcraft_geom::fit_pixels(pw, ph, wordcraft_geom::MAX_RASTER_PIXELS);
     let (w16, h16) = (cw as u16, ch as u16);
-    let mut ctx = RenderContext::new_with(w16, h16, vello_cpu::RenderSettings { num_threads: 0, ..Default::default() });
+    let mut ctx = RenderContext::new_with(w16, h16, render_settings(0));
     ctx.set_transform(Affine::IDENTITY);
     ctx.set_paint(color(Rgb(255, 255, 255), 1.0));
     ctx.fill_rect(&kurbo::Rect::new(0.0, 0.0, w16 as f64, h16 as f64));
@@ -1170,7 +1180,7 @@ pub fn render_items(doc: &Document, items: &[Draw], x: f32, y: f32, w: f32, h: f
     let view = Affine::scale_non_uniform(cw as f64 / pw as f64, ch as f64 / ph as f64)
         * Affine::scale(scale as f64)
         * Affine::translate((-x as f64, -y as f64));
-    let mut ctx = RenderContext::new_with(w16, h16, vello_cpu::RenderSettings { num_threads: 0, ..Default::default() });
+    let mut ctx = RenderContext::new_with(w16, h16, render_settings(0));
     let visible = view.inverse().transform_rect_bbox(kurbo::Rect::new(0.0, 0.0, w16 as f64, h16 as f64)).inflate(40.0, 40.0);
     for it in items {
         draw(&mut ctx, doc, it, view, &visible, opts);

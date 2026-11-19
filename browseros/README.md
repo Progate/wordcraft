@@ -29,6 +29,14 @@ holds what the WordCraft crates need to build and run there.
   has no file modes, so `File::set_permissions` (`fchmod`) always fails with ENOSYS and every Ctrl+S on an opened
   file failed with "Function not implemented (os error 52)". New documents never took that path.
 
+- **Pages render on the calling thread on any wasm** (`crates/render/src/lib.rs`, `default_threads`): the render
+  thread count is 0 for `target_arch = "wasm32"`, not only for the web. On BrowserOS (`wasm32-browseros-linux-musl`)
+  `available_parallelism` reports the host's cores, and every render would start a new `vello_cpu` pool of that many
+  threads, each a Web Worker that takes tens of milliseconds to start.
+- **`RenderSettings` without `Default`** (`render_settings`): vello_cpu's `RenderSettings::default()` asks
+  `available_parallelism` for a thread count on every call, which on Linux reads cgroup files. The renderer builds its
+  settings itself, so a frame no longer pays for that only to override it.
+
 ## License
 
 As the rest of WordCraft (MIT OR Apache-2.0). `browseros/crates/parking_lot_core` keeps its own license
