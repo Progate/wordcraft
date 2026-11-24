@@ -28,6 +28,8 @@ USAGE:
   wordcraft-cli text <file>                   plain text
   wordcraft-cli inspect <file>                document structure (JSON)
   wordcraft-cli render <file> <out.png> [--page N] [--scale S]
+  wordcraft-cli layout <file>                 where each body paragraph lands: page and
+                                              rectangle in points (JSON)
   wordcraft-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
@@ -67,7 +69,7 @@ same output on every machine.
 ";
 
 /// The subcommands, in `USAGE` order; `--help` or `-h` after any of them prints `USAGE` (#968).
-const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "run", "commands", "parity", "mcp", "zotero"];
+const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "layout", "run", "commands", "parity", "mcp", "zotero"];
 
 fn wants_help(cmd: &str, rest: &[String]) -> bool {
     SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
@@ -96,7 +98,7 @@ fn open(path: &Path, password: Option<&str>) -> Result<Session, String> {
 
 /// The commands that open a file, and which of their arguments not starting with `--` it is (as
 /// `pos` counts). `run` opens the value of `--file`.
-const OPENS_FILE: &[(&str, usize)] = &[("convert", 0), ("info", 0), ("text", 0), ("inspect", 0), ("render", 0), ("zotero", 1)];
+const OPENS_FILE: &[(&str, usize)] = &[("convert", 0), ("info", 0), ("text", 0), ("inspect", 0), ("render", 0), ("layout", 0), ("zotero", 1)];
 
 /// The arguments as text. Only the file the command opens may have a name that isn't valid Unicode,
 /// such as a Latin-1 one (#1440): it comes back as the path to open, and lossy among the arguments.
@@ -171,6 +173,45 @@ fn session(doc: wordcraft_doc::Document) -> Session {
 /// The system region, read as the app reads it (locale variables, else the platform's locale).
 fn system_region() -> wordcraft_engine::Region {
     wordcraft_engine::Region::from_locale_vars(|name| std::env::var(name).ok(), sys_locale::get_locale)
+}
+
+/// Where the body's paragraphs land on the printed pages (`render`'s layout): each page's size
+/// and, for each piece of a paragraph on a page (a paragraph split across pages has one per
+/// page), its 1-based page, path, the paragraph's text and the piece's text, and the rectangle
+/// its lines' text covers, in points from the page's top left. Turned lines (a table cell's text
+/// direction) are left out.
+fn paragraph_layout(s: &Session) -> Value {
+    use wordcraft_engine::doc::StoryRef;
+    use wordcraft_engine::layout::Placed;
+    let l = s.export_layout_with(false);
+    let pages: Vec<Value> = l.pages.iter().map(|p| json!({"width": p.w - p.markup, "height": p.h})).collect();
+    let mut paragraphs = Vec::new();
+    for (pi, page) in l.pages.iter().enumerate() {
+        for it in &page.items {
+            let Placed::Lines { story: StoryRef::Body, path, para, l0, l1, x, y, turn } = it else { continue };
+            if turn.is_turned() {
+                continue;
+            }
+            let lines = para.lines.get(*l0..*l1).unwrap_or_default();
+            let (Some(first), Some(last)) = (lines.first(), lines.last()) else { continue };
+            // A line's xs run from its first cluster to its end; an empty line has just its start.
+            let left = lines.iter().filter_map(|ln| ln.xs.first()).fold(f32::INFINITY, |a, b| a.min(*b));
+            let right = lines.iter().filter_map(|ln| ln.xs.last()).fold(f32::NEG_INFINITY, |a, b| a.max(*b));
+            let (left, right) = if left.is_finite() && right.is_finite() { (left, right) } else { (first.left, first.left) };
+            let top = *y;
+            let bottom = y + (last.top + last.height - first.top);
+            let text = s.doc.para(StoryRef::Body, path).map(|p| p.text.as_str()).unwrap_or("");
+            let piece = text.get(first.start..last.stop).unwrap_or("");
+            paragraphs.push(json!({
+                "page": pi + 1,
+                "path": path.0,
+                "text": text,
+                "pieceText": piece,
+                "rect": [x + left, top, right - left, bottom - top],
+            }));
+        }
+    }
+    json!({"pages": pages, "paragraphs": paragraphs})
 }
 
 /// The body text for `text`: the plain-text export, so list items keep their bullet or number label.
@@ -452,6 +493,14 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             let mut s = open(&i, password.as_deref())?;
             let r = s.run("file.exportPng", &json!({"path": o, "page": page, "scale": scale})).map_err(|e| e.to_string())?;
             write_stdout(|o| writeln!(o, "{r}"))
+        }
+        "layout" => {
+            validate_options("layout", &rest, PASSWORD_OPTIONS)?;
+            let paths = positionals(&rest, PASSWORD_OPTIONS);
+            let password = password_from(&rest)?;
+            let s = open(paths.first().ok_or_else(missing_argument)?, password.as_deref())?;
+            let out = serde_json::to_string_pretty(&paragraph_layout(&s)).unwrap_or_default();
+            write_stdout(|o| writeln!(o, "{out}"))
         }
         "run" => {
             validate_options("run", &rest, RUN_OPTIONS)?;
@@ -785,6 +834,21 @@ mod tests {
             .filter(|word| !word.starts_with(['-', '[']))
             .collect();
         assert_eq!(listed, SUBCOMMANDS);
+    }
+
+    #[test]
+    fn layout_places_each_body_paragraph_on_its_page() {
+        let doc = wordcraft_engine::io::open_bytes("two.md", b"alpha\n\nbeta\n").unwrap();
+        let v = paragraph_layout(&session(doc));
+        assert_eq!(v["pages"].as_array().map(Vec::len), Some(1));
+        let paras = v["paragraphs"].as_array().unwrap();
+        let texts: Vec<&str> = paras.iter().filter_map(|p| p["text"].as_str()).collect();
+        assert_eq!(texts, ["alpha", "beta"]);
+        let rect = |i: usize| -> Vec<f64> { paras[i]["rect"].as_array().unwrap().iter().filter_map(Value::as_f64).collect() };
+        let (a, b) = (rect(0), rect(1));
+        assert!(a[2] > 0.0 && a[3] > 0.0, "{a:?}");
+        assert!(b[1] >= a[1] + a[3], "beta is below alpha: {a:?} {b:?}");
+        assert_eq!(paras[0]["page"], 1);
     }
 
     #[test]
